@@ -1,6 +1,6 @@
 {
   "name": "ESPWifiAssist",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "A simple library for easily selecting WiFi networks on ESP8266",
   "keywords": ["esp", "wifi", "wifi-setup", "network", "captive-portal"],
   "repository": {
@@ -15,12 +15,9 @@
     }
   ],
   "license": "MIT",
-  "dependencies": [
-    {
-      "name": "bblanchon/ArduinoJson",
-      "version": "^6.21.4"
-    }
-  ],
+  "dependencies": {
+    "bblanchon/ArduinoJson": "^6.21.4"
+  },
   "frameworks": ["arduino"],
   "platforms": ["espressif8266"],
   "headers": ["ESPWifiAssist.h"]
