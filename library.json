@@ -1,0 +1,27 @@
+{
+  "name": "ESPWifiAssist",
+  "version": "1.0.0",
+  "description": "A simple library for easily selecting WiFi networks on ESP8266",
+  "keywords": ["esp", "wifi", "wifi-setup", "network", "captive-portal"],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/arnab8820/ESPWifiAssist.git"
+  },
+  "authors": [
+    {
+      "name": "Arnab Ghosh",
+      "email": "arnab8820@gmail.com",
+      "url": "https://github.com/arnab8820"
+    }
+  ],
+  "license": "MIT",
+  "dependencies": [
+    {
+      "name": "bblanchon/ArduinoJson",
+      "version": "^6.21.4"
+    }
+  ],
+  "frameworks": ["arduino"],
+  "platforms": ["espressif8266"],
+  "headers": ["ESPWifiAssist.h"]
+}
