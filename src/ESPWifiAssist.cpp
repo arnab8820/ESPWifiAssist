@@ -230,7 +230,6 @@ void ESPWifiAssist::registerEventHandlers()
 {
     // set wifi connect event handler
     onConnectedHandler = WiFi.onStationModeConnected([this](const WiFiEventStationModeConnected& event) {
-        Serial.println("Connected to AP");
         hasConnectedSuccessfully = true;
         isRetryingConnection = false;
 
@@ -257,8 +256,6 @@ void ESPWifiAssist::registerEventHandlers()
 
     // set wifi disconnected event handler 
     onDisconnectedHandler = WiFi.onStationModeDisconnected([this](const WiFiEventStationModeDisconnected& event) {
-        Serial.println("Disconnected from AP");
-
         bool hasSavedConfig = ssid[0] != '\0' && password[0] != '\0';
         if (!hasConnectedSuccessfully) {
             if (pendingConfig && hasSavedConfig) {
@@ -281,7 +278,6 @@ void ESPWifiAssist::registerEventHandlers()
 
     // set wifi got ip event handler
     onGotIpHandler = WiFi.onStationModeGotIP([this](const WiFiEventStationModeGotIP& event) {
-        Serial.println("Got IP address: " + WiFi.localIP().toString());
         if(gotIpCb)
         {
             gotIpCb(WiFi.localIP());
@@ -290,7 +286,6 @@ void ESPWifiAssist::registerEventHandlers()
 
     // set wifi mode change event handler
     onModeChangeHandler = WiFi.onWiFiModeChange([this](const WiFiEventModeChange& event) {
-        Serial.println("WiFi mode changed");
         if(modeChangeCb)
         {
             modeChangeCb(event.newMode);
