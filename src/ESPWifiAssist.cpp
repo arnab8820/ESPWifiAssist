@@ -39,14 +39,15 @@ void ESPWifiAssist::beginWifi(){
         strncpy(password, value.c_str(), sizeof(password) - 1);
         password[sizeof(password) - 1] = '\0';
 
-        if(ssid == "" || password == ""){
-            startAp();            
+        if(ssid[0] == '\0' || password[0] == '\0'){
+            startAp(false);
             return;
         }
 
+        startAp(true);
         connectToWiFi();
     } else {
-        startAp();        
+        startAp(false);
     }
 }
 
@@ -69,31 +70,52 @@ void ESPWifiAssist::onWifiModeChanged(WifiModeChangeCb cb)
     modeChangeCb = cb;
 }
 
-void ESPWifiAssist::connectToWiFi()
+void ESPWifiAssist::connectToWiFi(const char* inputSsid, const char* inputPassword)
 {
-    if(ssid == "" || ssid == NULL || password == "" || password == NULL){
+    const char* connectSsid = inputSsid ? inputSsid : ssid;
+    const char* connectPassword = inputPassword ? inputPassword : password;
+
+    if (connectSsid == NULL || connectSsid[0] == '\0' || connectPassword == NULL || connectPassword[0] == '\0') {
         return;
     }
 
-    // start in station mode
-    WiFi.mode(WIFI_STA);
-    WiFi.begin(ssid, password);
+    if (apStarted) {
+        WiFi.mode(WIFI_AP_STA);
+    } else {
+        WiFi.mode(WIFI_STA);
+    }
+
+    WiFi.begin(connectSsid, connectPassword);
+    connectionStartTime = millis();
+    isRetryingConnection = true;
 }
 
-void ESPWifiAssist::startAp()
+void ESPWifiAssist::startAp(bool allowSta)
 {
-    // Set WiFi mode to Access Point
-    WiFi.mode(WIFI_AP); 
-    
-    // Start the Access Point with SSID and password
-    WiFi.softAP(apSsid, apPassword); 
+    if (apStarted) {
+        return;
+    }
+
+    WiFi.mode(allowSta ? WIFI_AP_STA : WIFI_AP);
+    WiFi.softAP(apSsid, apPassword);
 
     dnsServer.start(DNS_PORT, "*", WiFi.softAPIP());
+    apStarted = true;
 }
 
 void ESPWifiAssist::monitorWifiConnection(){
     webServer->handleClient();
     dnsServer.processNextRequest();
+
+    if (isRetryingConnection && WiFi.status() != WL_CONNECTED) {
+        if (millis() - connectionStartTime >= CONNECTION_RETRY_INTERVAL) {
+            if (pendingConfig) {
+                connectToWiFi(pendingSsid, pendingPassword);
+            } else {
+                connectToWiFi();
+            }
+        }
+    }
 }
 
 void ESPWifiAssist::setHostName(String hostname)
@@ -143,10 +165,24 @@ void ESPWifiAssist::initWebServer(){
             Serial.println(error.f_str());
             return;
         } else {
-            const char* ssid = doc["ssid"];
-            const char* password = doc["password"];
-            saveWifiCredentials(ssid, password);
-            connectToWiFi();
+            const char* requestSsid = doc["ssid"];
+            const char* requestPassword = doc["password"];
+            if (requestSsid == NULL || requestSsid[0] == '\0') {
+                return;
+            }
+
+            strncpy(pendingSsid, requestSsid, sizeof(pendingSsid) - 1);
+            pendingSsid[sizeof(pendingSsid) - 1] = '\0';
+            strncpy(pendingPassword, requestPassword ? requestPassword : "", sizeof(pendingPassword) - 1);
+            pendingPassword[sizeof(pendingPassword) - 1] = '\0';
+            pendingConfig = true;
+
+            bool savedConfigExists = ssid[0] != '\0' && password[0] != '\0';
+            bool ssidChanged = savedConfigExists ? String(pendingSsid) != String(ssid) : true;
+            bool passwordChanged = savedConfigExists ? String(pendingPassword) != String(password) : true;
+            pendingSaveOnConnect = !savedConfigExists || ssidChanged || passwordChanged;
+
+            connectToWiFi(pendingSsid, pendingPassword);
         }
         webServer->send(200, "text/plain", "");
     });
@@ -195,19 +231,48 @@ void ESPWifiAssist::registerEventHandlers()
     // set wifi connect event handler
     onConnectedHandler = WiFi.onStationModeConnected([this](const WiFiEventStationModeConnected& event) {
         Serial.println("Connected to AP");
-        WiFi.softAPdisconnect(true);
+        hasConnectedSuccessfully = true;
+        isRetryingConnection = false;
+
+        if (pendingConfig && pendingSaveOnConnect) {
+            saveWifiCredentials(pendingSsid, pendingPassword);
+        } else if (pendingConfig && ssid[0] == '\0') {
+            saveWifiCredentials(pendingSsid, pendingPassword);
+        }
+
+        pendingConfig = false;
+        pendingSaveOnConnect = false;
+
+        if (apStarted) {
+            WiFi.softAPdisconnect(true);
+            dnsServer.stop();
+            apStarted = false;
+        }
+
         if (connectedCb)
         {
             connectedCb(ssid);
         }
-        
     });
 
     // set wifi disconnected event handler 
     onDisconnectedHandler = WiFi.onStationModeDisconnected([this](const WiFiEventStationModeDisconnected& event) {
         Serial.println("Disconnected from AP");
-        deleteFile("/config/wifi-config.json");
-        startAp();
+
+        bool hasSavedConfig = ssid[0] != '\0' && password[0] != '\0';
+        if (!hasConnectedSuccessfully) {
+            if (pendingConfig && hasSavedConfig) {
+                pendingConfig = false;
+                pendingSaveOnConnect = false;
+            }
+
+            if (!apStarted) {
+                startAp(true);
+            }
+        } else {
+            WiFi.mode(WIFI_STA);
+        }
+
         if (failedCb)
         {
             failedCb(event.reason);

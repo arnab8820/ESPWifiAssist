@@ -12,9 +12,19 @@ class ESPWifiAssist
 private:
     char ssid[64] = "";
     char password[64] = "";
+    char pendingSsid[64] = "";
+    char pendingPassword[64] = "";
 
     String apSsid = "ESP-wifi-assist";
     String apPassword = "";
+
+    bool apStarted = false;
+    bool hasConnectedSuccessfully = false;
+    bool isRetryingConnection = false;
+    bool pendingConfig = false;
+    bool pendingSaveOnConnect = false;
+    unsigned long connectionStartTime = 0;
+    const unsigned long CONNECTION_RETRY_INTERVAL = 10000;
 
     WiFiEventHandler onConnectedHandler;
     WiFiEventHandler onDisconnectedHandler;
@@ -26,16 +36,13 @@ private:
     using WifiGotIpCb     = std::function<void(const IPAddress& ip)>;
     using WifiModeChangeCb = std::function<void(WiFiMode mode)>;
 
-    // bool wifiConnecting = false;
-    // long connectionStartTime = 0;
-
     const byte DNS_PORT = 53; // DNS port number
     DNSServer dnsServer;
 
     ESP8266WebServer* webServer;
     
-    void connectToWiFi();
-    void startAp();
+    void connectToWiFi(const char* inputSsid = nullptr, const char* inputPassword = nullptr);
+    void startAp(bool allowSta = false);
     void initWebServer();
     void saveWifiCredentials(const char *inputSsid, const char *inputPassword);
     void registerEventHandlers();
